@@ -192,22 +192,30 @@ def is_valid_url(url):
     response = __request_get(url)
     return not response.has_error()
 
+def deconstruct_version(versionstring):
+    versionregex = re.compile(r'(\d+)\.(\d+)\.(\d+)(-dev)?')
+    versionmatch = re.match(versionregex, versionstring)
+
+    if not versionmatch:
+        raise ValueError(f"The version string '{versionstring}' is not valid.")
+
+    major = int(versionmatch.group(1))
+    minor = int(versionmatch.group(2))
+    patch = int(versionmatch.group(3))
+    is_dev = bool(versionmatch.group(4))
+
+    return major, minor, patch, is_dev
+
 
 def is_minimum_version(version_response):
     """
     Returns True if the wallabag-instance meets the required minimum version.
     """
-    versionstring = version_response.response
+    versionstring = json.loads(version_response.response)
 
-    if not re.compile('"\\d+\\.\\d+\\.\\d+"').match(versionstring):
-        return False
+    major, minor, patch, dev = deconstruct_version(versionstring)
+    tmajor, tminor, tpatch, tdev = deconstruct_version(MINIMUM_API_VERSION_HR)
 
-    ver = versionstring.strip('"').split('.')
-
-    major = int(ver[0])
-    minor = int(ver[1])
-    patch = int(ver[2])
-    tmajor, tminor, tpatch = MINIMUM_API_VERSION
 
     if major > tmajor:
         return True
@@ -219,7 +227,12 @@ def is_minimum_version(version_response):
         elif minor < tminor:
             return False
         else:
-            return patch >= tpatch
+            if patch > tpatch:
+                return True
+            elif patch == tpatch and tdev == dev:
+                return True
+            else:
+                return False
 
 
 def api_version(different_url=None):
